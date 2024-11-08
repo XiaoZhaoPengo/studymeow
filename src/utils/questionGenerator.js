@@ -163,7 +163,7 @@ const generateBlankQuestion = (poem, allPoems) => {
   
   return {
     type: 'blank',
-    question: `${poemInfo}\n请补全下面诗句中的空白处：\n${questionLines.join('\n')}`,
+    question: `请补全下面诗句中的空白处：\n\n${poemInfo}\n${questionLines.join('\n')}`,
     options: shuffledOptions,
     answer: correctIndex,
     correctAnswer
@@ -195,7 +195,7 @@ const generateUnderstandingQuestion = (poem, allPoems) => {
         question: '这首诗运用了什么写作手法？',
         getOptions: (poem) => {
           const options = {
-            '绝句': ['拟人、衬托', '比喻、夸张', '对比、借景', '象征、暗示'],
+            '绝句': ['拟人、衬托', '比喻、夸���', '对比、借景', '象征、暗示'],
             '清明': ['比喻、拟人', '夸张、对比', '借景抒情', '象征、衬托']
           };
           return options[poem.title] || generateDefaultOptions();
@@ -229,14 +229,20 @@ const generateUnderstandingQuestion = (poem, allPoems) => {
 
   const poemInfo = [
     `《${poem.title || '无题'}》`,
-    `【${poem.dynasty || '朝代不��'}】`,
+    `【${poem.dynasty || '朝代不详'}】`,
     `${poem.author ? poem.author.trim() : '佚名'}`,
     ...poem.content
   ].join('\n');
 
   return {
     type: 'understanding',
-    question: `${poemInfo}\n${template.question}`,
+    question: template.question,
+    poemInfo: {
+      title: poem.title,
+      dynasty: poem.dynasty,
+      author: poem.author,
+      content: poem.content
+    },
     options: shuffledOptions,
     answer: correctIndex,
     correctAnswer

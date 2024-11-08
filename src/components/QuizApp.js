@@ -61,12 +61,18 @@ function QuizApp() {
   useEffect(() => {
     if (currentQuestions.length > 0) {
       const currentQuestion = currentQuestions[currentIndex];
-      const [titleLine, dynastyLine, authorLine, ...poemLines] = currentQuestion.question.split('\n');
-      
-      setTitle(titleLine);
-      setDynasty(dynastyLine);
-      setAuthor(authorLine);
-      setContentLines(poemLines);
+      if (currentQuestion.type === 'understanding') {
+        setTitle(currentQuestion.poemInfo.title);
+        setDynasty(currentQuestion.poemInfo.dynasty);
+        setAuthor(currentQuestion.poemInfo.author);
+        setContentLines(currentQuestion.poemInfo.content);
+      } else {
+        const [titleLine, dynastyLine, authorLine, ...poemLines] = currentQuestion.question.split('\n');
+        setTitle(titleLine);
+        setDynasty(dynastyLine);
+        setAuthor(authorLine);
+        setContentLines(poemLines);
+      }
     }
   }, [currentQuestions, currentIndex]);
 
@@ -107,6 +113,40 @@ function QuizApp() {
   };
 
   const currentQuestion = currentQuestions[currentIndex];
+
+  const QuestionCard = () => {
+    return (
+      <div className="question-header">
+        <div className="question-progress">
+          第 {currentIndex + 1}/{currentQuestions.length} 题
+        </div>
+        {currentQuestion.type === 'understanding' && (
+          <div className="question-prompt">
+            {currentQuestion.question}
+          </div>
+        )}
+        <div className="poem-info">
+          <div className="poem-title">{title}</div>
+          <div className="poem-meta">
+            <span className="dynasty">{dynasty}</span>
+            <span className="author">{author}</span>
+          </div>
+          <div className="poem-content">
+            {contentLines.map((line, index) => (
+              <div key={index} className="poem-line">
+                {line}
+              </div>
+            ))}
+          </div>
+        </div>
+        {currentQuestion.type === 'blank' && (
+          <div className="question-prompt">
+            请补全下面诗句中的空白处：
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <S.StyledLayout>
@@ -203,28 +243,7 @@ function QuizApp() {
           </S.ResultCard>
         ) : (
           <S.QuestionCard>
-            <div className="question-header">
-              <div className="question-progress">
-                第 {currentIndex + 1}/{currentQuestions.length} 题
-              </div>
-              <div className="question-prompt">
-                请补全下面诗句中的空白处：
-              </div>
-              <div className="poem-info">
-                <div className="poem-title">{title}</div>
-                <div className="poem-meta">
-                  <span className="dynasty">{dynasty}</span>
-                  <span className="author">{author}</span>
-                </div>
-                <div className="poem-content">
-                  {contentLines.map((line, index) => (
-                    <div key={index} className="poem-line">
-                      {line}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <QuestionCard />
             <S.OptionsWrapper 
               onChange={(e) => setSelectedAnswer(e.target.value)}
               value={selectedAnswer}
