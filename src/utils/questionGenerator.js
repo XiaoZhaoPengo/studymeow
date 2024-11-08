@@ -170,6 +170,95 @@ const generateBlankQuestion = (poem, allPoems) => {
   };
 };
 
+// 生成诗词理解题
+const generateUnderstandingQuestion = (poem, allPoems) => {
+  // 根据诗词内容和年级特点生成题目
+  const questionTemplates = {
+    // 低年级(1-2年级)题目模板
+    lower: [
+      {
+        question: '这首诗描写了什么？',
+        getOptions: (poem) => {
+          const options = {
+            '咏鹅': ['大白鹅的样子', '小鸭子游泳', '小鸟飞翔', '鱼儿游戏'],
+            '江南': ['采莲和鱼儿嬉戏的景象', '下雨天的景色', '春天的景色', '冬天的景色'],
+            '画': ['山水景色', '花鸟虫鱼', '日月星辰', '亭台楼阁'],
+            '悯农': ['农民劳作的辛苦', '田园风光', '收获的喜悦', '春天播种']
+          };
+          return options[poem.title] || generateDefaultOptions();
+        }
+      }
+    ],
+    // 中年级(3-4年级)题目模板
+    middle: [
+      {
+        question: '这首诗运用了什么写作手法？',
+        getOptions: (poem) => {
+          const options = {
+            '绝句': ['拟人、衬托', '比喻、夸张', '对比、借景', '象征、暗示'],
+            '清明': ['比喻、拟人', '夸张、对比', '借景抒情', '象征、衬托']
+          };
+          return options[poem.title] || generateDefaultOptions();
+        }
+      }
+    ],
+    // 高年级(5-6年级)题目模板
+    higher: [
+      {
+        question: '这首诗表达了作者怎样的思想感情？',
+        getOptions: (poem) => {
+          const options = {
+            '示儿': ['勉励儿子勤奋学习的期望', '对儿子的深深思念', '对人生的感悟', '对未来的憧憬'],
+            '过故人庄': ['对友情的珍惜和怀念', '对仕途的无奈', '对理想的追求', '对生活的感慨']
+          };
+          return options[poem.title] || generateDefaultOptions();
+        }
+      }
+    ]
+  };
+
+  // 根据年级选择题目模板
+  const gradeLevel = getGradeLevel(poem.id);
+  const templates = questionTemplates[gradeLevel];
+  const template = templates[Math.floor(Math.random() * templates.length)];
+  
+  const options = template.getOptions(poem);
+  const correctAnswer = options[0];
+  const shuffledOptions = options.sort(() => Math.random() - 0.5);
+  const correctIndex = shuffledOptions.indexOf(correctAnswer);
+
+  const poemInfo = [
+    `《${poem.title || '无题'}》`,
+    `【${poem.dynasty || '朝代不��'}】`,
+    `${poem.author ? poem.author.trim() : '佚名'}`,
+    ...poem.content
+  ].join('\n');
+
+  return {
+    type: 'understanding',
+    question: `${poemInfo}\n${template.question}`,
+    options: shuffledOptions,
+    answer: correctIndex,
+    correctAnswer
+  };
+};
+
+// 根据诗词ID判断年级等级
+const getGradeLevel = (poemId) => {
+  const grade = Math.ceil(poemId / 20); // 假设每个年级20首诗
+  if (grade <= 2) return 'lower';
+  if (grade <= 4) return 'middle';
+  return 'higher';
+};
+
+// 生成默认选项
+const generateDefaultOptions = () => [
+  '描写自然景色',
+  '表达思乡之情',
+  '歌颂友情',
+  '赞美人物'
+];
+
 // 根据难度生成题目
 export const generateQuestions = async (termId, difficulty) => {
   try {
@@ -191,15 +280,43 @@ export const generateQuestions = async (termId, difficulty) => {
       throw new Error(`未找到年级 ${termId} 的诗词`);
     }
     
-    const questionCount = DIFFICULTY_LEVELS[difficulty].questionCount;
     const questions = [];
-    
     const availablePoems = [...poems];
-    while (questions.length < Math.min(questionCount, availablePoems.length)) {
-      const randomIndex = Math.floor(Math.random() * availablePoems.length);
-      const selectedPoem = availablePoems[randomIndex];
-      questions.push(generateBlankQuestion(selectedPoem, poems));
-      availablePoems.splice(randomIndex, 1);
+    
+    switch(difficulty) {
+      case 'EASY':
+        // 简单模式：10道填空题
+        while (questions.length < 10 && availablePoems.length > 0) {
+          const randomIndex = Math.floor(Math.random() * availablePoems.length);
+          const selectedPoem = availablePoems[randomIndex];
+          questions.push(generateBlankQuestion(selectedPoem, poems));
+          availablePoems.splice(randomIndex, 1);
+        }
+        break;
+        
+      case 'MEDIUM':
+        // 中等模式：10道填空题 + 10道理解题
+        while (questions.length < 20 && availablePoems.length > 0) {
+          const randomIndex = Math.floor(Math.random() * availablePoems.length);
+          const selectedPoem = availablePoems[randomIndex];
+          if (questions.length < 10) {
+            questions.push(generateBlankQuestion(selectedPoem, poems));
+          } else {
+            questions.push(generateUnderstandingQuestion(selectedPoem, poems));
+          }
+          availablePoems.splice(randomIndex, 1);
+        }
+        break;
+        
+      case 'HARD':
+        // 困难模式：30道理解题
+        while (questions.length < 30 && availablePoems.length > 0) {
+          const randomIndex = Math.floor(Math.random() * availablePoems.length);
+          const selectedPoem = availablePoems[randomIndex];
+          questions.push(generateUnderstandingQuestion(selectedPoem, poems));
+          availablePoems.splice(randomIndex, 1);
+        }
+        break;
     }
     
     console.log('termId:', termId);
