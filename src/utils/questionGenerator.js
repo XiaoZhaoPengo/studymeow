@@ -1,48 +1,87 @@
 import { DIFFICULTY_LEVELS } from '../config/constants';
 
 // 解析诗词文本数据
-const parsePoems = (text) => {
+const parsePoems = (content, termId) => {
   const poems = [];
-  const lines = text.split('\n');
   let currentPoem = null;
-
-  lines.forEach(line => {
-    line = line.trim();
-    if (line.match(/^\d+$/)) {
-      if (currentPoem) {
+  let isCurrentGrade = false;
+  
+  // 将 grade 转换为中文数字
+  const gradeMap = {
+    1: '一',
+    2: '二',
+    3: '三',
+    4: '四',
+    5: '五',
+    6: '六'
+  };
+  
+  // 使用正则表达式提取年级和学期
+  const matches = termId.match(/grade(\d+)_(\d+)/);
+  if (!matches) {
+    throw new Error('无效的学期ID格式');
+  }
+  
+  const [, grade, term] = matches;
+  const gradeNum = parseInt(grade);
+  const targetGrade = `${gradeMap[gradeNum]}年级${term === '1' ? '上册' : '下册'}`;
+  
+  console.log('termId:', termId);
+  console.log('grade:', gradeNum);
+  console.log('目标年级:', targetGrade);
+  
+  const lines = content.split('\n')
+    .map(line => line.replace(/^\d+\|/, '').trim())
+    .filter(line => line);
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    console.log('当前处理行:', line);
+    
+    if (line === targetGrade) {
+      console.log('找到目标年级:', line);
+      isCurrentGrade = true;
+      continue;
+    } else if (line.endsWith('年级上册') || line.endsWith('年级下册')) {
+      if (line !== targetGrade) {
+        isCurrentGrade = false;
+      }
+      continue;
+    }
+    
+    if (!isCurrentGrade) continue;
+    
+    if (/^\d{2}$/.test(line)) {
+      if (currentPoem && currentPoem.content.length > 0) {
         poems.push(currentPoem);
       }
       currentPoem = {
-        id: line,
+        id: parseInt(line),
         title: '',
-        author: '',
         dynasty: '',
+        author: '',
         content: []
       };
-    } else if (line && currentPoem) {
-      if (!currentPoem.title) {
-        currentPoem.title = line;
-      } else if (line.startsWith('【')) {
-        const content = line.replace(/【|】/g, '');
-        if (content.includes('】')) {
-          const [dynasty, author] = content.split('】');
-          currentPoem.dynasty = dynasty;
-          currentPoem.author = author;
-        } else {
-          // 如果只有一个【】，则第一个字为朝代，剩余为作者
-          currentPoem.dynasty = content.charAt(0);
-          currentPoem.author = content.slice(1).trim();
+    } else if (currentPoem) {
+      if (!currentPoem.title && !line.includes('【') && !line.includes('】')) {
+        currentPoem.title = line.replace(/[《》]/g, '');
+      } else if (line.includes('【') && line.includes('】')) {
+        const match = line.match(/【(.+)】(.+)/);
+        if (match) {
+          currentPoem.dynasty = match[1];
+          currentPoem.author = match[2].trim();
         }
-      } else if (line.length > 0 && !line.includes('年级') && !line.includes('册')) {
+      } else if (currentPoem.title && line.length >= 2) {
         currentPoem.content.push(line);
       }
     }
-  });
-
-  if (currentPoem) {
+  }
+  
+  if (currentPoem && currentPoem.content.length > 0) {
     poems.push(currentPoem);
   }
-
+  
+  console.log(`解析到的诗词数量: ${poems.length}, 目标年级: ${targetGrade}`);
   return poems;
 };
 
@@ -88,7 +127,7 @@ const generateBlankQuestion = (poem, allPoems) => {
   // 生成选项
   const options = [correctAnswer];
   
-  // 如果没有足够的相同字数的诗句，就从相近字数的诗句中选择
+  // 如果没有足够的相同字数的诗句，就从相近字数诗句中选择
   if (otherPoemLines.length < 3) {
     const similarLengthLines = allPoems
       .filter(p => p.id !== poem.id)
@@ -124,7 +163,7 @@ const generateBlankQuestion = (poem, allPoems) => {
   
   return {
     type: 'blank',
-    question: `${poemInfo}\n${questionLines.join('\n')}`,
+    question: `${poemInfo}\n请补全下面诗句中的空白处：\n${questionLines.join('\n')}`,
     options: shuffledOptions,
     answer: correctIndex,
     correctAnswer
@@ -132,23 +171,45 @@ const generateBlankQuestion = (poem, allPoems) => {
 };
 
 // 根据难度生成题目
-export const generateQuestions = async (term, difficulty) => {
+export const generateQuestions = async (termId, difficulty) => {
   try {
-    const response = await fetch(`/poetry/${term}.txt`);
-    const text = await response.text();
-    const poems = parsePoems(text);
-    
-    const questions = [];
-    const questionCount = DIFFICULTY_LEVELS[difficulty]?.questionCount || 5;
-    
-    while (questions.length < questionCount) {
-      const randomPoem = poems[Math.floor(Math.random() * poems.length)];
-      questions.push(generateBlankQuestion(randomPoem, poems));
+    const gradeMatch = termId.match(/(\d+)_(\d+)/);
+    if (!gradeMatch) {
+      throw new Error('无效的学期ID');
     }
+    
+    // 从统一的诗词文件读取
+    const response = await fetch('/poetry/all_poems.txt');
+    if (!response.ok) {
+      throw new Error('诗词文件加载失败');
+    }
+    
+    const content = await response.text();
+    const poems = parsePoems(content, termId);
+    
+    if (!poems.length) {
+      throw new Error(`未找到年级 ${termId} 的诗词`);
+    }
+    
+    const questionCount = DIFFICULTY_LEVELS[difficulty].questionCount;
+    const questions = [];
+    
+    const availablePoems = [...poems];
+    while (questions.length < Math.min(questionCount, availablePoems.length)) {
+      const randomIndex = Math.floor(Math.random() * availablePoems.length);
+      const selectedPoem = availablePoems[randomIndex];
+      questions.push(generateBlankQuestion(selectedPoem, poems));
+      availablePoems.splice(randomIndex, 1);
+    }
+    
+    console.log('termId:', termId);
+    console.log('difficulty:', difficulty);
+    console.log('解析到的内容:', content);
+    console.log('生成的题目:', questions);
     
     return questions;
   } catch (error) {
-    console.error('Error generating questions:', error);
+    console.error('生成题目失败:', error);
     throw error;
   }
 };
